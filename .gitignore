@@ -1,5 +1,4 @@
 service_account.json
-logo_esg.png
 __pycache__/
 *.pyc
 .env
