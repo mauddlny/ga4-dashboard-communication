@@ -326,10 +326,11 @@ def main():
     property_id = PROPERTY_IDS.get(site_name)
 
     # ── Check credentials ───────────────────────────────────────────────────────
-    if not os.path.exists(CREDENTIALS_FILE):
+    client = get_client()
+    if not client:
         st.error(
-            "⚠️ Fichier `service_account.json` introuvable. "
-            "Place-le dans le dossier du projet et relance l'app."
+            "⚠️ Credentials introuvables. "
+            "Place `service_account.json` dans le dossier du projet ou configure les Secrets Streamlit."
         )
         st.info("👉 Consulte le README pour créer ton compte de service Google.")
         return
