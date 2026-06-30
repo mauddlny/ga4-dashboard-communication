@@ -657,8 +657,8 @@ def main():
 
     # ── Pages table ─────────────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 📄 Détail par page")
-    st.caption("Top 50 pages triées par utilisateurs — 30 derniers jours")
+    st.markdown("### 📄 Utilisateurs par Landing page")
+    st.caption("Top 50 pages (page d'entrée) triées par utilisateurs — 30 derniers jours")
 
     with st.spinner("Chargement des pages…"):
         df_pages = fetch_pages(property_id, start_str, end_str)
@@ -674,8 +674,8 @@ def main():
 
     # ── Page paths table ─────────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🗂️ Trafic par chemin de page")
-    st.caption("Top 50 pages vues (entrée + navigation) triées par utilisateurs")
+    st.markdown("### 🗂️ Utilisateurs par chemin de page")
+    st.caption("Top 50 pages (page d'entrée + navigation) triées par utilisateurs — 30 derniers jours")
 
     with st.spinner("Chargement des chemins de page…"):
         df_paths = fetch_page_paths(property_id, start_str, end_str)
