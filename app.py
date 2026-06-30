@@ -243,7 +243,7 @@ def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter:
             field_name="landingPage",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
-                value=re.escape(url_filter) + r"([/?].*)?",
+                value=re.escape(url_filter) + r"(\?.*)?",
                 case_sensitive=False,
             ),
         )
@@ -296,7 +296,7 @@ def fetch_page_path_kpis(property_id: str, start_date: str, end_date: str, url_f
             field_name="pagePath",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
-                value=re.escape(url_filter) + r"([/?].*)?",
+                value=re.escape(url_filter) + r"(\?.*)?",
                 case_sensitive=False,
             ),
         )
@@ -333,7 +333,7 @@ def fetch_page_path_traffic(property_id: str, start_date: str, end_date: str, gr
             field_name="pagePath",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
-                value=re.escape(url_filter) + r"([/?].*)?",
+                value=re.escape(url_filter) + r"(\?.*)?",
                 case_sensitive=False,
             ),
         )
@@ -381,7 +381,7 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
             field_name="landingPage",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
-                value=re.escape(url_filter) + r"([/?].*)?",
+                value=re.escape(url_filter) + r"(\?.*)?",
                 case_sensitive=False,
             ),
         )
