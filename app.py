@@ -10,6 +10,7 @@ from google.analytics.data_v1beta.types import (
     Dimension,
     OrderBy,
     FilterExpression,
+    FilterExpressionList,
     Filter,
     NumericValue,
 )
@@ -97,21 +98,79 @@ def get_client():
     return None
 
 
+# ── Filter helpers ──────────────────────────────────────────────────────────────
+def make_str_filter(field: str, value: str, regexp: bool = False) -> FilterExpression:
+    match_type = Filter.StringFilter.MatchType.FULL_REGEXP if regexp else Filter.StringFilter.MatchType.EXACT
+    return FilterExpression(filter=Filter(
+        field_name=field,
+        string_filter=Filter.StringFilter(match_type=match_type, value=value, case_sensitive=False),
+    ))
+
+def combine_filters(*exprs) -> FilterExpression | None:
+    """AND-combine multiple FilterExpressions, ignoring None values."""
+    valid = [e for e in exprs if e is not None]
+    if not valid:
+        return None
+    if len(valid) == 1:
+        return valid[0]
+    return FilterExpression(and_group=FilterExpressionList(expressions=valid))
+
+def session_filter(medium: str | None, source: str | None) -> FilterExpression | None:
+    """Build a filter for medium and/or source."""
+    f_medium = make_str_filter("sessionMedium", medium) if medium else None
+    f_source = make_str_filter("sessionSource", source) if source else None
+    return combine_filters(f_medium, f_source)
+
+
 # ── Data fetching ───────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def fetch_kpis(property_id: str, start_date: str, end_date: str):
+def fetch_mediums(property_id: str, start_date: str, end_date: str) -> list:
+    client = get_client()
+    if not client:
+        return []
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name="sessionMedium")],
+        metrics=[Metric(name="totalUsers")],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=True)],
+        limit=20,
+    )
+    response = client.run_report(request)
+    return [r.dimension_values[0].value for r in response.rows if r.dimension_values[0].value not in ("", "(not set)")]
+
+
+@st.cache_data(ttl=3600)
+def fetch_sources(property_id: str, start_date: str, end_date: str, medium: str) -> list:
+    client = get_client()
+    if not client:
+        return []
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name="sessionSource")],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=make_str_filter("sessionMedium", medium),
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=True)],
+        limit=30,
+    )
+    response = client.run_report(request)
+    return [r.dimension_values[0].value for r in response.rows if r.dimension_values[0].value not in ("", "(not set)")]
+
+
+@st.cache_data(ttl=3600)
+def fetch_kpis(property_id: str, start_date: str, end_date: str, medium: str = None, source: str = None):
     client = get_client()
     if not client:
         return None
 
-    # Total users + key events
+    sf = session_filter(medium, source)
+
     request = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
-        metrics=[
-            Metric(name="totalUsers"),
-            Metric(name="keyEvents"),
-        ],
+        metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
+        **({"dimension_filter": sf} if sf else {}),
     )
     response = client.run_report(request)
     row = response.rows[0] if response.rows else None
@@ -121,12 +180,12 @@ def fetch_kpis(property_id: str, start_date: str, end_date: str):
     total_users = int(row.metric_values[0].value)
     key_events  = int(row.metric_values[1].value)
 
-    # Users who triggered at least 1 key event via isKeyEvent dimension
     request_converters = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
         dimensions=[Dimension(name="isKeyEvent")],
         metrics=[Metric(name="totalUsers")],
+        **({"dimension_filter": sf} if sf else {}),
     )
     response_conv = client.run_report(request_converters)
     converting_users = 0
@@ -136,42 +195,34 @@ def fetch_kpis(property_id: str, start_date: str, end_date: str):
             break
     key_event_rate = round((converting_users / total_users * 100), 2) if total_users > 0 else 0.0
 
-    return {
-        "total_users":    total_users,
-        "key_events":     key_events,
-        "key_event_rate": key_event_rate,
-    }
+    return {"total_users": total_users, "key_events": key_events, "key_event_rate": key_event_rate}
 
 
 @st.cache_data(ttl=3600)
-def fetch_pages(property_id: str, start_date: str, end_date: str):
+def fetch_pages(property_id: str, start_date: str, end_date: str, medium: str = None, source: str = None):
     client = get_client()
     if not client:
         return pd.DataFrame()
 
-    # Requête 1 : Total Users + Key Events par landing page
+    sf = session_filter(medium, source)
+
     req_all = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
         dimensions=[Dimension(name="landingPage")],
-        metrics=[
-            Metric(name="totalUsers"),
-            Metric(name="keyEvents"),
-        ],
+        metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=True)],
         limit=50,
+        **({"dimension_filter": sf} if sf else {}),
     )
     resp_all = client.run_report(req_all)
 
-    # Requête 2 : Users avec isKeyEvent = true par landing page
     req_ke = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
-        dimensions=[
-            Dimension(name="landingPage"),
-            Dimension(name="isKeyEvent"),
-        ],
+        dimensions=[Dimension(name="landingPage"), Dimension(name="isKeyEvent")],
         metrics=[Metric(name="totalUsers")],
+        **({"dimension_filter": sf} if sf else {}),
     )
     resp_ke = client.run_report(req_ke)
 
@@ -204,21 +255,21 @@ def fetch_pages(property_id: str, start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=3600)
-def fetch_page_paths(property_id: str, start_date: str, end_date: str):
+def fetch_page_paths(property_id: str, start_date: str, end_date: str, medium: str = None, source: str = None):
     client = get_client()
     if not client:
         return pd.DataFrame()
+
+    sf = session_filter(medium, source)
 
     request = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
         dimensions=[Dimension(name="pagePath")],
-        metrics=[
-            Metric(name="totalUsers"),
-            Metric(name="screenPageViews"),
-        ],
+        metrics=[Metric(name="totalUsers"), Metric(name="screenPageViews")],
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=True)],
         limit=50,
+        **({"dimension_filter": sf} if sf else {}),
     )
     response = client.run_report(request)
 
@@ -420,13 +471,14 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
 
 
 @st.cache_data(ttl=3600)
-def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity: str):
+def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity: str, medium: str = None, source: str = None):
     client = get_client()
     if not client:
         return pd.DataFrame()
 
     dim_map = {"Jour": "date", "Semaine": "isoWeek", "Mois": "yearMonth"}
     dimension = dim_map[granularity]
+    sf = session_filter(medium, source)
 
     request = RunReportRequest(
         property=f"properties/{property_id}",
@@ -434,6 +486,7 @@ def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity:
         dimensions=[Dimension(name=dimension)],
         metrics=[Metric(name="totalUsers")],
         order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name=dimension))],
+        **({"dimension_filter": sf} if sf else {}),
     )
     response = client.run_report(request)
 
@@ -541,6 +594,7 @@ def main():
         )
 
     # ── Validate date range ─────────────────────────────────────────────────────
+    # (sidebar filters for medium/source added below after property_id is known)
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
         start_date, end_date = date_range
     else:
@@ -567,6 +621,24 @@ def main():
             f"par l'ID numérique de ta propriété GA4 dans `app.py`."
         )
         return
+
+    # ── Sidebar : filtres Source / Support ──────────────────────────────────────
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("**🔎 Filtres trafic**")
+
+        mediums = fetch_mediums(property_id, start_str, end_str)
+        medium_options = ["Tous"] + mediums
+        selected_medium_label = st.selectbox("Support (medium)", medium_options)
+        selected_medium = None if selected_medium_label == "Tous" else selected_medium_label
+
+        if selected_medium:
+            sources = fetch_sources(property_id, start_str, end_str, selected_medium)
+            source_options = ["Toutes"] + sources
+            selected_source_label = st.selectbox("Source", source_options)
+            selected_source = None if selected_source_label == "Toutes" else selected_source_label
+        else:
+            selected_source = None
 
     # ── Site title avec logo ────────────────────────────────────────────────────
     logo_cfg = LOGOS.get(site_name, {})
@@ -595,7 +667,7 @@ def main():
 
     # ── KPIs ────────────────────────────────────────────────────────────────────
     with st.spinner("Chargement des KPIs…"):
-        kpis = fetch_kpis(property_id, start_str, end_str)
+        kpis = fetch_kpis(property_id, start_str, end_str, selected_medium, selected_source)
 
     if kpis:
         col1, col2, col3 = st.columns(3)
@@ -625,7 +697,7 @@ def main():
 
     # ── Traffic chart ────────────────────────────────────────────────────────────
     with st.spinner("Chargement du graphique…"):
-        df = fetch_traffic(property_id, start_str, end_str, granularity)
+        df = fetch_traffic(property_id, start_str, end_str, granularity, selected_medium, selected_source)
 
     if not df.empty:
         if granularity == "Jour":
@@ -666,7 +738,7 @@ def main():
     st.caption("Top 50 pages (page d'entrée) triées par utilisateurs — 30 derniers jours")
 
     with st.spinner("Chargement des pages…"):
-        df_pages = fetch_pages(property_id, start_str, end_str)
+        df_pages = fetch_pages(property_id, start_str, end_str, selected_medium, selected_source)
 
     if not df_pages.empty:
         df_display = df_pages.copy()
@@ -683,7 +755,7 @@ def main():
     st.caption("Top 50 pages (page d'entrée + navigation) triées par utilisateurs — 30 derniers jours")
 
     with st.spinner("Chargement des chemins de page…"):
-        df_paths = fetch_page_paths(property_id, start_str, end_str)
+        df_paths = fetch_page_paths(property_id, start_str, end_str, selected_medium, selected_source)
 
     if not df_paths.empty:
         df_paths_display = df_paths.copy()
