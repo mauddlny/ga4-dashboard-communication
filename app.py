@@ -188,10 +188,10 @@ def fetch_pages(property_id: str, start_date: str, end_date: str):
         conv_users  = ke_users_by_path.get(path, 0)
         rate        = round(conv_users / total_users * 100, 2) if total_users > 0 else 0.0
         rows.append({
-            "URL":         path,
-            "Total Users": total_users,
-            "Key Events":  key_events,
-            "Taux":        rate,
+            "Landing Page": path,
+            "Total Users":  total_users,
+            "Key Events":   key_events,
+            "Taux":         rate,
         })
 
     df = pd.DataFrame(rows)
@@ -545,9 +545,9 @@ def main():
 
     if not df_pages.empty:
         df_display = df_pages.copy()
-        df_display["Total Users"] = df_display["Total Users"].apply(lambda x: f"{x:,}")
-        df_display["Key Events"]  = df_display["Key Events"].apply(lambda x: f"{x:,}")
-        df_display["Taux"]        = df_display["Taux"].apply(lambda x: f"{x:.2f}%")
+        df_display["Total Users"]  = df_display["Total Users"].apply(lambda x: f"{x:,}")
+        df_display["Key Events"]   = df_display["Key Events"].apply(lambda x: f"{x:,}")
+        df_display["Taux"]         = df_display["Taux"].apply(lambda x: f"{x:.2f}%")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("Aucune donnée de page disponible pour cette période.")
