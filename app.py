@@ -552,11 +552,11 @@ def main():
     else:
         st.info("Aucune donnée de page disponible pour cette période.")
 
-    # ── URL Search ──────────────────────────────────────────────────────────────
+    # ── Landing Page Search ─────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🔍 Analyse d'une URL")
+    st.markdown("### 🔍 Analyse par landing page")
     url_search = st.text_input(
-        "Saisir une URL complète ou un chemin",
+        "Saisir une landing page (URL complète ou chemin)",
         placeholder="ex: https://www.esg.fr/formations/bachelor  ou  /formations/bachelor",
     )
 
@@ -571,7 +571,7 @@ def main():
             url_kpis = fetch_url_kpis(property_id, start_str, end_str, url_search)
 
         if url_kpis and url_kpis["total_users"] > 0:
-            st.caption(f"Résultats pour les pages contenant : **{url_search}**")
+            st.caption(f"Résultats pour les landing pages contenant : **{url_search}**")
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.markdown(f"""
@@ -607,7 +607,7 @@ def main():
                     x=x_col,
                     y="users",
                     labels={"users": "Utilisateurs", x_col: ""},
-                    title=f"Trafic — {url_search}",
+                    title=f"Trafic landing page — {url_search}",
                     color_discrete_sequence=["#f7864f"],
                 )
                 fig_url.update_traces(
@@ -625,7 +625,7 @@ def main():
                 )
                 st.plotly_chart(fig_url, width="stretch")
         else:
-            st.info(f"Aucune donnée trouvée pour **{url_search}** sur cette période.")
+            st.info(f"Aucune landing page trouvée contenant **{url_search}** sur cette période.")
 
 
 if __name__ == "__main__":
