@@ -481,6 +481,9 @@ PROPERTY_IDS = {
     "Esarc":          "302461432",
     "Digital Campus": "302438676",
     "Elije":          "314845877",
+    "ESG Sport":      "302430731",
+    "ESG Luxe":       "317198069",
+    "LISAA":          "302446046",
 }
 
 LOGOS = {
@@ -488,6 +491,9 @@ LOGOS = {
     "Esarc":          {"type": "url",   "src": "https://www.esarc-evolution.fr/sites/default/files/ggeedu_vars/logo_esarc_quadri.svg", "bg": "transparent"},
     "Digital Campus": {"type": "url",   "src": "https://www.digital-campus.fr/sites/all/themes/digital_campus/img/logos/logo-digital-campus-dark.svg", "bg": "transparent"},
     "Elije":          {"type": "url",   "src": "https://www.elije.fr/sites/default/files/ggeedu_vars/logo-elije-noir.svg", "bg": "transparent"},
+    "ESG Sport":      {"type": "url",   "src": "https://www.esg-sport.com/sites/default/files/images/2025-04/logo-sport.png", "bg": "transparent"},
+    "ESG Luxe":       {"type": "url",   "src": "https://www.esg-luxe.com/sites/all/themes/bootstrapv4_studialis/img/svg/logo_luxe.svg", "bg": "transparent"},
+    "LISAA":          {"type": "url",   "src": "https://www.lisaa.com/sites/all/themes/lisaa/img/svg/logo-rouge.svg", "bg": "transparent"},
 }
 
 
