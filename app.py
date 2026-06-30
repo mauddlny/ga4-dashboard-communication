@@ -282,6 +282,88 @@ def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter:
 
 
 @st.cache_data(ttl=3600)
+def fetch_page_path_kpis(property_id: str, start_date: str, end_date: str, url_filter: str):
+    client = get_client()
+    if not client:
+        return None
+
+    path_filter = FilterExpression(
+        filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value=url_filter,
+                case_sensitive=False,
+            ),
+        )
+    )
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        metrics=[Metric(name="totalUsers"), Metric(name="screenPageViews")],
+        dimension_filter=path_filter,
+    )
+    response = client.run_report(request)
+    row = response.rows[0] if response.rows else None
+    if not row:
+        return {"total_users": 0, "page_views": 0}
+
+    return {
+        "total_users": int(row.metric_values[0].value),
+        "page_views":  int(row.metric_values[1].value),
+    }
+
+
+@st.cache_data(ttl=3600)
+def fetch_page_path_traffic(property_id: str, start_date: str, end_date: str, granularity: str, url_filter: str):
+    client = get_client()
+    if not client:
+        return pd.DataFrame()
+
+    dim_map = {"Jour": "date", "Semaine": "isoWeek", "Mois": "yearMonth"}
+    dimension = dim_map[granularity]
+
+    path_filter = FilterExpression(
+        filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value=url_filter,
+                case_sensitive=False,
+            ),
+        )
+    )
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name=dimension)],
+        metrics=[Metric(name="totalUsers")],
+        order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name=dimension))],
+        dimension_filter=path_filter,
+    )
+    response = client.run_report(request)
+
+    rows = []
+    for row in response.rows:
+        rows.append({"period": row.dimension_values[0].value, "users": int(row.metric_values[0].value)})
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    if granularity == "Jour":
+        df["period"] = pd.to_datetime(df["period"], format="%Y%m%d")
+    elif granularity == "Semaine":
+        df["period_display"] = df["period"].apply(lambda x: f"S{x[4:]} {x[:4]}" if len(x) >= 6 else x)
+    elif granularity == "Mois":
+        df["period_display"] = df["period"].apply(lambda x: datetime.strptime(x, "%Y%m").strftime("%b %Y") if len(x) == 6 else x)
+
+    return df
+
+
+@st.cache_data(ttl=3600)
 def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granularity: str, url_filter: str):
     client = get_client()
     if not client:
@@ -597,80 +679,103 @@ def main():
     else:
         st.info("Aucune donnée disponible pour cette période.")
 
-    # ── Landing Page Search ─────────────────────────────────────────────────────
+    # ── Recherche par page ──────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🔍 Analyse par landing page")
+    st.markdown("### 🔍 Analyse d'une page")
     url_search = st.text_input(
-        "Saisir une landing page (URL complète ou chemin)",
+        "Saisir une URL complète ou un chemin",
         placeholder="ex: https://www.esg.fr/formations/bachelor  ou  /formations/bachelor",
     )
 
     if url_search:
-        # Nettoyer l'URL : extraire uniquement le chemin
         import urllib.parse
         parsed = urllib.parse.urlparse(url_search.strip())
         url_search = parsed.path if parsed.scheme else url_search.strip()
         if not url_search:
             url_search = "/"
-        with st.spinner("Chargement…"):
-            url_kpis = fetch_url_kpis(property_id, start_str, end_str, url_search)
 
-        if url_kpis and url_kpis["total_users"] > 0:
-            st.caption(f"Résultats pour les landing pages contenant : **{url_search}**")
-            col1, col2, col3 = st.columns(3)
-            with col1:
+        st.caption(f"Résultats pour les pages contenant : **{url_search}**")
+        x_col = "period" if granularity == "Jour" else "period_display"
+
+        col_lp, col_pp = st.columns(2)
+
+        # ── Colonne Landing Page ─────────────────────────────────────────────
+        with col_lp:
+            st.markdown("#### 📥 Landing page")
+            st.caption("Utilisateurs entrés par cette page")
+            with st.spinner("Chargement…"):
+                lp_kpis = fetch_url_kpis(property_id, start_str, end_str, url_search)
+
+            if lp_kpis and lp_kpis["total_users"] > 0:
                 st.markdown(f"""
-                <div class="kpi-card">
+                <div class="kpi-card" style="margin-bottom:8px">
                     <div class="kpi-label">Total Users</div>
-                    <div class="kpi-value">{format_number(url_kpis['total_users'])}</div>
-                    <div class="kpi-sub">sur la période sélectionnée</div>
+                    <div class="kpi-value">{format_number(lp_kpis['total_users'])}</div>
+                    <div class="kpi-sub">entrées sur la période</div>
                 </div>""", unsafe_allow_html=True)
-            with col2:
                 st.markdown(f"""
-                <div class="kpi-card">
+                <div class="kpi-card" style="margin-bottom:8px">
                     <div class="kpi-label">Key Events</div>
-                    <div class="kpi-value">{format_number(url_kpis['key_events'])}</div>
+                    <div class="kpi-value">{format_number(lp_kpis['key_events'])}</div>
                     <div class="kpi-sub">événements clés déclenchés</div>
                 </div>""", unsafe_allow_html=True)
-            with col3:
                 st.markdown(f"""
-                <div class="kpi-card">
+                <div class="kpi-card" style="margin-bottom:12px">
                     <div class="kpi-label">Key Event Rate</div>
-                    <div class="kpi-value">{url_kpis['key_event_rate']}%</div>
+                    <div class="kpi-value">{lp_kpis['key_event_rate']}%</div>
                     <div class="kpi-sub">utilisateurs avec ≥1 key event</div>
                 </div>""", unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
+                with st.spinner("Chargement du graphique…"):
+                    df_lp = fetch_url_traffic(property_id, start_str, end_str, granularity, url_search)
+                if not df_lp.empty:
+                    fig_lp = px.area(df_lp, x=x_col, y="users",
+                        labels={"users": "Utilisateurs", x_col: ""},
+                        title=f"Trafic landing page — {url_search}",
+                        color_discrete_sequence=["#f7864f"])
+                    fig_lp.update_traces(fill="tozeroy", line=dict(width=2), fillcolor="rgba(247,134,79,0.15)")
+                    fig_lp.update_layout(plot_bgcolor="white", paper_bgcolor="white",
+                        xaxis=dict(showgrid=False), yaxis=dict(gridcolor="#f0f0f0"),
+                        hovermode="x unified", margin=dict(t=50, b=20, l=20, r=20))
+                    st.plotly_chart(fig_lp, use_container_width=True)
+            else:
+                st.info("Aucune donnée landing page trouvée.")
 
-            with st.spinner("Chargement du graphique…"):
-                df_url = fetch_url_traffic(property_id, start_str, end_str, granularity, url_search)
+        # ── Colonne Chemin de page ───────────────────────────────────────────
+        with col_pp:
+            st.markdown("#### 🗂️ Chemin de page")
+            st.caption("Utilisateurs ayant visité cette page (entrée + navigation)")
+            with st.spinner("Chargement…"):
+                pp_kpis = fetch_page_path_kpis(property_id, start_str, end_str, url_search)
 
-            if not df_url.empty:
-                x_col = "period" if granularity == "Jour" else "period_display"
-                fig_url = px.area(
-                    df_url,
-                    x=x_col,
-                    y="users",
-                    labels={"users": "Utilisateurs", x_col: ""},
-                    title=f"Trafic landing page — {url_search}",
-                    color_discrete_sequence=["#f7864f"],
-                )
-                fig_url.update_traces(
-                    fill="tozeroy",
-                    line=dict(width=2),
-                    fillcolor="rgba(247, 134, 79, 0.15)",
-                )
-                fig_url.update_layout(
-                    plot_bgcolor="white",
-                    paper_bgcolor="white",
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(gridcolor="#f0f0f0"),
-                    hovermode="x unified",
-                    margin=dict(t=50, b=20, l=20, r=20),
-                )
-                st.plotly_chart(fig_url, width="stretch")
-        else:
-            st.info(f"Aucune landing page trouvée contenant **{url_search}** sur cette période.")
+            if pp_kpis and pp_kpis["total_users"] > 0:
+                st.markdown(f"""
+                <div class="kpi-card" style="margin-bottom:8px">
+                    <div class="kpi-label">Total Users</div>
+                    <div class="kpi-value">{format_number(pp_kpis['total_users'])}</div>
+                    <div class="kpi-sub">utilisateurs ayant vu la page</div>
+                </div>""", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="kpi-card" style="margin-bottom:8px">
+                    <div class="kpi-label">Pages vues</div>
+                    <div class="kpi-value">{format_number(pp_kpis['page_views'])}</div>
+                    <div class="kpi-sub">vues totales (avec revisites)</div>
+                </div>""", unsafe_allow_html=True)
+
+                with st.spinner("Chargement du graphique…"):
+                    df_pp = fetch_page_path_traffic(property_id, start_str, end_str, granularity, url_search)
+                if not df_pp.empty:
+                    fig_pp = px.area(df_pp, x=x_col, y="users",
+                        labels={"users": "Utilisateurs", x_col: ""},
+                        title=f"Trafic chemin de page — {url_search}",
+                        color_discrete_sequence=["#4fc49e"])
+                    fig_pp.update_traces(fill="tozeroy", line=dict(width=2), fillcolor="rgba(79,196,158,0.15)")
+                    fig_pp.update_layout(plot_bgcolor="white", paper_bgcolor="white",
+                        xaxis=dict(showgrid=False), yaxis=dict(gridcolor="#f0f0f0"),
+                        hovermode="x unified", margin=dict(t=50, b=20, l=20, r=20))
+                    st.plotly_chart(fig_pp, use_container_width=True)
+            else:
+                st.info("Aucune donnée chemin de page trouvée.")
 
 
 if __name__ == "__main__":
