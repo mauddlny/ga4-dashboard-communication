@@ -29,7 +29,7 @@ CREDENTIALS_FILE = "service_account.json"
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="GA4 Dashboard",
+    page_title="GA4 Dashboard - Communication",
     page_icon="📊",
     layout="wide",
 )
@@ -500,7 +500,7 @@ LOGOS = {
 # ── UI ──────────────────────────────────────────────────────────────────────────
 def main():
     # Header
-    st.markdown("## GA4 Dashboard")
+    st.markdown("## GA4 Dashboard - Communication")
     st.divider()
 
     # ── Sidebar controls ────────────────────────────────────────────────────────
