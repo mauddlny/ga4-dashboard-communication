@@ -704,7 +704,7 @@ def main():
         if not url_search:
             url_search = "/"
 
-        st.caption(f"Résultats pour les pages contenant : **{url_search}**")
+        st.caption(f"Résultats pour la page : **{url_search}**")
         x_col = "period" if granularity == "Jour" else "period_display"
 
         col_lp, col_pp = st.columns(2)
