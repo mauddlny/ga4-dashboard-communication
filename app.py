@@ -200,6 +200,35 @@ def fetch_pages(property_id: str, start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=3600)
+def fetch_page_paths(property_id: str, start_date: str, end_date: str):
+    client = get_client()
+    if not client:
+        return pd.DataFrame()
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name="pagePath")],
+        metrics=[
+            Metric(name="totalUsers"),
+            Metric(name="screenPageViews"),
+        ],
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="totalUsers"), desc=True)],
+        limit=50,
+    )
+    response = client.run_report(request)
+
+    rows = []
+    for row in response.rows:
+        rows.append({
+            "Chemin de page":  row.dimension_values[0].value,
+            "Total Users":     int(row.metric_values[0].value),
+            "Pages vues":      int(row.metric_values[1].value),
+        })
+    return pd.DataFrame(rows)
+
+
+@st.cache_data(ttl=3600)
 def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter: str):
     client = get_client()
     if not client:
@@ -551,6 +580,22 @@ def main():
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("Aucune donnée de page disponible pour cette période.")
+
+    # ── Page paths table ─────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 🗂️ Trafic par chemin de page")
+    st.caption("Top 50 pages vues (entrée + navigation) triées par utilisateurs")
+
+    with st.spinner("Chargement des chemins de page…"):
+        df_paths = fetch_page_paths(property_id, start_str, end_str)
+
+    if not df_paths.empty:
+        df_paths_display = df_paths.copy()
+        df_paths_display["Total Users"] = df_paths_display["Total Users"].apply(lambda x: f"{x:,}")
+        df_paths_display["Pages vues"]  = df_paths_display["Pages vues"].apply(lambda x: f"{x:,}")
+        st.dataframe(df_paths_display, use_container_width=True, hide_index=True)
+    else:
+        st.info("Aucune donnée disponible pour cette période.")
 
     # ── Landing Page Search ─────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
