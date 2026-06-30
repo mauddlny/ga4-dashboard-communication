@@ -205,9 +205,9 @@ def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter:
     if not client:
         return None
 
-    filter_expr = FilterExpression(
+    lp_filter = FilterExpression(
         filter=Filter(
-            field_name="pagePath",
+            field_name="landingPage",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.CONTAINS,
                 value=url_filter,
@@ -216,33 +216,37 @@ def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter:
         )
     )
 
-    request = RunReportRequest(
+    # Requête 1 : totalUsers + keyEvents par landingPage contenant url_filter
+    req1 = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name="landingPage")],
         metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
-        dimension_filter=filter_expr,
+        dimension_filter=lp_filter,
     )
-    response = client.run_report(request)
-    row = response.rows[0] if response.rows else None
-    if not row:
+    resp1 = client.run_report(req1)
+
+    total_users = sum(int(r.metric_values[0].value) for r in resp1.rows)
+    key_events  = sum(int(r.metric_values[1].value) for r in resp1.rows)
+
+    if total_users == 0:
         return {"total_users": 0, "key_events": 0, "key_event_rate": 0.0}
 
-    total_users = int(row.metric_values[0].value)
-    key_events  = int(row.metric_values[1].value)
-
-    request_conv = RunReportRequest(
+    # Requête 2 : users convertisseurs via isKeyEvent dimension (même approche que tableau pages)
+    req2 = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
-        dimensions=[Dimension(name="isKeyEvent")],
+        dimensions=[Dimension(name="landingPage"), Dimension(name="isKeyEvent")],
         metrics=[Metric(name="totalUsers")],
-        dimension_filter=filter_expr,
+        dimension_filter=lp_filter,
     )
-    response_conv = client.run_report(request_conv)
+    resp2 = client.run_report(req2)
+
     converting_users = 0
-    for r in response_conv.rows:
-        if r.dimension_values[0].value == "true":
-            converting_users = int(r.metric_values[0].value)
-            break
+    for r in resp2.rows:
+        if r.dimension_values[1].value == "true":
+            converting_users += int(r.metric_values[0].value)
+
     key_event_rate = round((converting_users / total_users * 100), 2) if total_users > 0 else 0.0
 
     return {"total_users": total_users, "key_events": key_events, "key_event_rate": key_event_rate}
@@ -259,7 +263,7 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
 
     filter_expr = FilterExpression(
         filter=Filter(
-            field_name="pagePath",
+            field_name="landingPage",
             string_filter=Filter.StringFilter(
                 match_type=Filter.StringFilter.MatchType.CONTAINS,
                 value=url_filter,
