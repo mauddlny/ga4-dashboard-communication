@@ -23,6 +23,9 @@ SITES = {
     "Esarc":            "T5EPH0X0FW",
     "Digital Campus":   "8BXHF279VB",
     "Elije":            "BGHLYQB0BS",
+    "ESG Sport":        "302430731",
+    "ESG Luxe":         "317198069",
+    "LISAA":            "302446046",
 }
 
 CREDENTIALS_FILE = "service_account.json"
