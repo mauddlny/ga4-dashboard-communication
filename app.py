@@ -552,11 +552,17 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 🔍 Analyse d'une URL")
     url_search = st.text_input(
-        "Saisir une URL ou un chemin",
-        placeholder="ex: /formations/bachelor",
+        "Saisir une URL complète ou un chemin",
+        placeholder="ex: https://www.esg.fr/formations/bachelor  ou  /formations/bachelor",
     )
 
     if url_search:
+        # Nettoyer l'URL : extraire uniquement le chemin
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url_search.strip())
+        url_search = parsed.path if parsed.scheme else url_search.strip()
+        if not url_search:
+            url_search = "/"
         with st.spinner("Chargement…"):
             url_kpis = fetch_url_kpis(property_id, start_str, end_str, url_search)
 
