@@ -391,7 +391,7 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
         dimensions=[Dimension(name=dimension)],
-        metrics=[Metric(name="totalUsers")],
+        metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
         order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name=dimension))],
         dimension_filter=filter_expr,
     )
@@ -399,7 +399,11 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
 
     rows = []
     for row in response.rows:
-        rows.append({"period": row.dimension_values[0].value, "users": int(row.metric_values[0].value)})
+        rows.append({
+            "period":     row.dimension_values[0].value,
+            "users":      int(row.metric_values[0].value),
+            "key_events": int(row.metric_values[1].value),
+        })
 
     df = pd.DataFrame(rows)
     if df.empty:
@@ -739,14 +743,26 @@ def main():
                 with st.spinner("Chargement du graphique…"):
                     df_lp = fetch_url_traffic(property_id, start_str, end_str, granularity, url_search)
                 if not df_lp.empty:
-                    fig_lp = px.area(df_lp, x=x_col, y="users",
-                        labels={"users": "Utilisateurs", x_col: ""},
-                        title=f"Trafic landing page — {url_search}",
-                        color_discrete_sequence=["#f7864f"])
-                    fig_lp.update_traces(fill="tozeroy", line=dict(width=2), fillcolor="rgba(247,134,79,0.15)")
-                    fig_lp.update_layout(plot_bgcolor="white", paper_bgcolor="white",
+                    fig_lp = go.Figure()
+                    fig_lp.add_trace(go.Scatter(
+                        x=df_lp[x_col], y=df_lp["users"],
+                        name="Utilisateurs", mode="lines",
+                        line=dict(color="#f7864f", width=2),
+                        fill="tozeroy", fillcolor="rgba(247,134,79,0.15)",
+                    ))
+                    fig_lp.add_trace(go.Scatter(
+                        x=df_lp[x_col], y=df_lp["key_events"],
+                        name="Key Events", mode="lines",
+                        line=dict(color="#9b59b6", width=2),
+                        fill="tozeroy", fillcolor="rgba(155,89,182,0.10)",
+                    ))
+                    fig_lp.update_layout(
+                        title=f"Utilisateurs & Key Events — {url_search}",
+                        plot_bgcolor="white", paper_bgcolor="white",
                         xaxis=dict(showgrid=False), yaxis=dict(gridcolor="#f0f0f0"),
-                        hovermode="x unified", margin=dict(t=50, b=20, l=20, r=20))
+                        hovermode="x unified", margin=dict(t=50, b=20, l=20, r=20),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    )
                     st.plotly_chart(fig_lp, use_container_width=True)
             else:
                 st.info("Aucune donnée landing page trouvée.")
