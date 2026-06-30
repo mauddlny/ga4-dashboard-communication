@@ -200,6 +200,103 @@ def fetch_pages(property_id: str, start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=3600)
+def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter: str):
+    client = get_client()
+    if not client:
+        return None
+
+    filter_expr = FilterExpression(
+        filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value=url_filter,
+                case_sensitive=False,
+            ),
+        )
+    )
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
+        dimension_filter=filter_expr,
+    )
+    response = client.run_report(request)
+    row = response.rows[0] if response.rows else None
+    if not row:
+        return {"total_users": 0, "key_events": 0, "key_event_rate": 0.0}
+
+    total_users = int(row.metric_values[0].value)
+    key_events  = int(row.metric_values[1].value)
+
+    request_conv = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name="isKeyEvent")],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=filter_expr,
+    )
+    response_conv = client.run_report(request_conv)
+    converting_users = 0
+    for r in response_conv.rows:
+        if r.dimension_values[0].value == "true":
+            converting_users = int(r.metric_values[0].value)
+            break
+    key_event_rate = round((converting_users / total_users * 100), 2) if total_users > 0 else 0.0
+
+    return {"total_users": total_users, "key_events": key_events, "key_event_rate": key_event_rate}
+
+
+@st.cache_data(ttl=3600)
+def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granularity: str, url_filter: str):
+    client = get_client()
+    if not client:
+        return pd.DataFrame()
+
+    dim_map = {"Jour": "date", "Semaine": "isoWeek", "Mois": "yearMonth"}
+    dimension = dim_map[granularity]
+
+    filter_expr = FilterExpression(
+        filter=Filter(
+            field_name="pagePath",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value=url_filter,
+                case_sensitive=False,
+            ),
+        )
+    )
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+        dimensions=[Dimension(name=dimension)],
+        metrics=[Metric(name="totalUsers")],
+        order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name=dimension))],
+        dimension_filter=filter_expr,
+    )
+    response = client.run_report(request)
+
+    rows = []
+    for row in response.rows:
+        rows.append({"period": row.dimension_values[0].value, "users": int(row.metric_values[0].value)})
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    if granularity == "Jour":
+        df["period"] = pd.to_datetime(df["period"], format="%Y%m%d")
+    elif granularity == "Semaine":
+        df["period_display"] = df["period"].apply(lambda x: f"S{x[4:]} {x[:4]}" if len(x) >= 6 else x)
+    elif granularity == "Mois":
+        df["period_display"] = df["period"].apply(lambda x: datetime.strptime(x, "%Y%m").strftime("%b %Y") if len(x) == 6 else x)
+
+    return df
+
+
+@st.cache_data(ttl=3600)
 def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity: str):
     client = get_client()
     if not client:
@@ -450,6 +547,75 @@ def main():
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("Aucune donnée de page disponible pour cette période.")
+
+    # ── URL Search ──────────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 🔍 Analyse d'une URL")
+    url_search = st.text_input(
+        "Saisir une URL ou un chemin",
+        placeholder="ex: /formations/bachelor",
+    )
+
+    if url_search:
+        with st.spinner("Chargement…"):
+            url_kpis = fetch_url_kpis(property_id, start_str, end_str, url_search)
+
+        if url_kpis and url_kpis["total_users"] > 0:
+            st.caption(f"Résultats pour les pages contenant : **{url_search}**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Users</div>
+                    <div class="kpi-value">{format_number(url_kpis['total_users'])}</div>
+                    <div class="kpi-sub">sur la période sélectionnée</div>
+                </div>""", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Key Events</div>
+                    <div class="kpi-value">{format_number(url_kpis['key_events'])}</div>
+                    <div class="kpi-sub">événements clés déclenchés</div>
+                </div>""", unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-label">Key Event Rate</div>
+                    <div class="kpi-value">{url_kpis['key_event_rate']}%</div>
+                    <div class="kpi-sub">utilisateurs avec ≥1 key event</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            with st.spinner("Chargement du graphique…"):
+                df_url = fetch_url_traffic(property_id, start_str, end_str, granularity, url_search)
+
+            if not df_url.empty:
+                x_col = "period" if granularity == "Jour" else "period_display"
+                fig_url = px.area(
+                    df_url,
+                    x=x_col,
+                    y="users",
+                    labels={"users": "Utilisateurs", x_col: ""},
+                    title=f"Trafic — {url_search}",
+                    color_discrete_sequence=["#f7864f"],
+                )
+                fig_url.update_traces(
+                    fill="tozeroy",
+                    line=dict(width=2),
+                    fillcolor="rgba(247, 134, 79, 0.15)",
+                )
+                fig_url.update_layout(
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(gridcolor="#f0f0f0"),
+                    hovermode="x unified",
+                    margin=dict(t=50, b=20, l=20, r=20),
+                )
+                st.plotly_chart(fig_url, width="stretch")
+        else:
+            st.info(f"Aucune donnée trouvée pour **{url_search}** sur cette période.")
 
 
 if __name__ == "__main__":
