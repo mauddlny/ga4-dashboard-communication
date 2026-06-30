@@ -16,6 +16,7 @@ from google.analytics.data_v1beta.types import (
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
 import os
+import re
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 SITES = {
@@ -241,8 +242,8 @@ def fetch_url_kpis(property_id: str, start_date: str, end_date: str, url_filter:
         filter=Filter(
             field_name="landingPage",
             string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value=url_filter,
+                match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
+                value=re.escape(url_filter) + r"([/?].*)?",
                 case_sensitive=False,
             ),
         )
@@ -294,8 +295,8 @@ def fetch_page_path_kpis(property_id: str, start_date: str, end_date: str, url_f
         filter=Filter(
             field_name="pagePath",
             string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value=url_filter,
+                match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
+                value=re.escape(url_filter) + r"([/?].*)?",
                 case_sensitive=False,
             ),
         )
@@ -331,8 +332,8 @@ def fetch_page_path_traffic(property_id: str, start_date: str, end_date: str, gr
         filter=Filter(
             field_name="pagePath",
             string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value=url_filter,
+                match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
+                value=re.escape(url_filter) + r"([/?].*)?",
                 case_sensitive=False,
             ),
         )
@@ -379,8 +380,8 @@ def fetch_url_traffic(property_id: str, start_date: str, end_date: str, granular
         filter=Filter(
             field_name="landingPage",
             string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.CONTAINS,
-                value=url_filter,
+                match_type=Filter.StringFilter.MatchType.FULL_REGEXP,
+                value=re.escape(url_filter) + r"([/?].*)?",
                 case_sensitive=False,
             ),
         )
