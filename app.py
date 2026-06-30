@@ -635,7 +635,7 @@ def main():
             x=x_col,
             y="users",
             labels={"users": "Utilisateurs", x_col: x_label},
-            title=f"Trafic par {granularity.lower()} — {site_name}",
+            title=f"Utilisateurs par {granularity.lower()} — {site_name}",
             color_discrete_sequence=["#4f8ef7"],
         )
         fig.update_traces(
