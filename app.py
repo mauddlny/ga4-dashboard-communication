@@ -716,6 +716,7 @@ def main():
             line=dict(color="#4f8ef7", width=2),
             fill="tozeroy",
             fillcolor="rgba(79,142,247,0.12)",
+            yaxis="y1",
         ))
         fig.add_trace(go.Scatter(
             x=df[x_col], y=df["key_events"],
@@ -724,15 +725,17 @@ def main():
             line=dict(color="#e05c2a", width=2),
             fill="tozeroy",
             fillcolor="rgba(224,92,42,0.08)",
+            yaxis="y2",
         ))
         fig.update_layout(
             title=f"Utilisateurs & Key Events par {granularity.lower()} — {site_name}",
             plot_bgcolor="white",
             paper_bgcolor="white",
             xaxis=dict(showgrid=False, title=x_label),
-            yaxis=dict(gridcolor="#f0f0f0", title=""),
+            yaxis=dict(title="Utilisateurs", gridcolor="#f0f0f0", titlefont=dict(color="#4f8ef7"), tickfont=dict(color="#4f8ef7")),
+            yaxis2=dict(title="Key Events", overlaying="y", side="right", showgrid=False, titlefont=dict(color="#e05c2a"), tickfont=dict(color="#e05c2a")),
             hovermode="x unified",
-            margin=dict(t=50, b=20, l=20, r=20),
+            margin=dict(t=50, b=20, l=20, r=60),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
         st.plotly_chart(fig, use_container_width=True)
