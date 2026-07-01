@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     RunReportRequest,
@@ -708,7 +709,7 @@ def main():
             x_col = "period_display"
             x_label = "Période"
 
-        fig = go.Figure()
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
         fig.add_trace(go.Scatter(
             x=df[x_col], y=df["users"],
             name="Utilisateurs",
@@ -716,8 +717,7 @@ def main():
             line=dict(color="#4f8ef7", width=2),
             fill="tozeroy",
             fillcolor="rgba(79,142,247,0.12)",
-            yaxis="y1",
-        ))
+        ), secondary_y=False)
         fig.add_trace(go.Scatter(
             x=df[x_col], y=df["key_events"],
             name="Key Events",
@@ -725,19 +725,18 @@ def main():
             line=dict(color="#e05c2a", width=2),
             fill="tozeroy",
             fillcolor="rgba(224,92,42,0.08)",
-            yaxis="y2",
-        ))
+        ), secondary_y=True)
         fig.update_layout(
             title=f"Utilisateurs & Key Events par {granularity.lower()} — {site_name}",
             plot_bgcolor="white",
             paper_bgcolor="white",
-            xaxis=dict(showgrid=False, title=x_label),
-            yaxis=dict(title="Utilisateurs", gridcolor="#f0f0f0", titlefont=dict(color="#4f8ef7"), tickfont=dict(color="#4f8ef7")),
-            yaxis2=dict(title="Key Events", overlaying="y", side="right", showgrid=False, titlefont=dict(color="#e05c2a"), tickfont=dict(color="#e05c2a")),
             hovermode="x unified",
             margin=dict(t=50, b=20, l=20, r=60),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
+        fig.update_xaxes(showgrid=False)
+        fig.update_yaxes(title_text="Utilisateurs", gridcolor="#f0f0f0", title_font=dict(color="#4f8ef7"), tickfont=dict(color="#4f8ef7"), secondary_y=False)
+        fig.update_yaxes(title_text="Key Events", showgrid=False, title_font=dict(color="#e05c2a"), tickfont=dict(color="#e05c2a"), secondary_y=True)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Aucune donnée de trafic disponible pour cette période.")
