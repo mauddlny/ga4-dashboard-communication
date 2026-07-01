@@ -536,7 +536,7 @@ def fetch_search_pages(property_id: str, start_date: str, end_date: str) -> pd.D
             Metric(name="organicGoogleSearchAveragePosition"),
         ],
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="organicGoogleSearchClicks"), desc=True)],
-        limit=100,
+        limit=10000,
     )
     try:
         response = client.run_report(request)
@@ -933,7 +933,7 @@ def render_search_console(property_id, start_str, end_str):
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 🗂️ Search Console — Pages de destination")
-    st.caption("Top 100 pages de destination + chaîne de requête, triées par clics")
+    st.caption("Pages de destination + chaîne de requête, triées par clics")
 
     with st.spinner("Chargement des pages…"):
         df_p = fetch_search_pages(property_id, start_str, end_str)
