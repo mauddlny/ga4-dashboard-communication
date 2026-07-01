@@ -927,6 +927,8 @@ def main():
 
 
 def render_search_console(property_id, start_str, end_str):
+    st.markdown("### 🗂️ Search Console — Requêtes")
+    st.caption("🚧 En cours de construction")
     st.info("ℹ️ Les requêtes de recherche Google (mots-clés tapés par les internautes) ne sont pas accessibles via l'API GA4 — elles ne sont disponibles que dans l'interface GA4 ou via l'API Google Search Console directement.")
 
     st.markdown("<br>", unsafe_allow_html=True)
