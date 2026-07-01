@@ -521,40 +521,6 @@ def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity:
 
 
 @st.cache_data(ttl=3600)
-def fetch_search_queries(property_id: str, start_date: str, end_date: str) -> pd.DataFrame:
-    client = get_client()
-    if not client:
-        return pd.DataFrame()
-    request = RunReportRequest(
-        property=f"properties/{property_id}",
-        date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
-        dimensions=[Dimension(name="searchTerm")],
-        metrics=[
-            Metric(name="organicGoogleSearchClicks"),
-            Metric(name="organicGoogleSearchImpressions"),
-            Metric(name="organicGoogleSearchClickThroughRate"),
-            Metric(name="organicGoogleSearchAveragePosition"),
-        ],
-        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="organicGoogleSearchClicks"), desc=True)],
-        limit=100,
-    )
-    try:
-        response = client.run_report(request)
-    except Exception as e:
-        return pd.DataFrame({"_error": [str(e)]})
-    rows = []
-    for row in response.rows:
-        rows.append({
-            "Requête":     row.dimension_values[0].value,
-            "Clics":       int(row.metric_values[0].value),
-            "Impressions": int(row.metric_values[1].value),
-            "CTR":         round(float(row.metric_values[2].value) * 100, 2),
-            "Position":    round(float(row.metric_values[3].value), 1),
-        })
-    return pd.DataFrame(rows)
-
-
-@st.cache_data(ttl=3600)
 def fetch_search_pages(property_id: str, start_date: str, end_date: str) -> pd.DataFrame:
     client = get_client()
     if not client:
@@ -961,23 +927,7 @@ def main():
 
 
 def render_search_console(property_id, start_str, end_str):
-    st.markdown("### 🔍 Search Console — Requêtes")
-    st.caption("Top 100 requêtes de recherche naturelle Google, triées par clics")
-
-    with st.spinner("Chargement des requêtes…"):
-        df_q = fetch_search_queries(property_id, start_str, end_str)
-
-    if not df_q.empty and "_error" in df_q.columns:
-        st.error(f"Erreur API : {df_q['_error'].iloc[0]}")
-    elif not df_q.empty:
-        df_q_display = df_q.copy()
-        df_q_display["Clics"]       = df_q_display["Clics"].apply(lambda x: f"{x:,}")
-        df_q_display["Impressions"] = df_q_display["Impressions"].apply(lambda x: f"{x:,}")
-        df_q_display["CTR"]         = df_q_display["CTR"].apply(lambda x: f"{x:.2f}%")
-        df_q_display["Position"]    = df_q_display["Position"].apply(lambda x: f"{x:.1f}")
-        st.dataframe(df_q_display, use_container_width=True, hide_index=True)
-    else:
-        st.info("Aucune donnée Search Console disponible. Vérifie que Search Console est lié à cette propriété GA4.")
+    st.info("ℹ️ Les requêtes de recherche Google (mots-clés tapés par les internautes) ne sont pas accessibles via l'API GA4 — elles ne sont disponibles que dans l'interface GA4 ou via l'API Google Search Console directement.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 🗂️ Search Console — Pages de destination")
