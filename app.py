@@ -528,7 +528,7 @@ def fetch_search_queries(property_id: str, start_date: str, end_date: str) -> pd
     request = RunReportRequest(
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
-        dimensions=[Dimension(name="searchQuery")],
+        dimensions=[Dimension(name="searchTerm")],
         metrics=[
             Metric(name="organicGoogleSearchClicks"),
             Metric(name="organicGoogleSearchImpressions"),
@@ -540,8 +540,8 @@ def fetch_search_queries(property_id: str, start_date: str, end_date: str) -> pd
     )
     try:
         response = client.run_report(request)
-    except Exception as e:
-        return pd.DataFrame({"_error": [str(e)]})
+    except Exception:
+        return pd.DataFrame()
     rows = []
     for row in response.rows:
         rows.append({
@@ -967,9 +967,7 @@ def render_search_console(property_id, start_str, end_str):
     with st.spinner("Chargement des requêtes…"):
         df_q = fetch_search_queries(property_id, start_str, end_str)
 
-    if not df_q.empty and "_error" in df_q.columns:
-        st.error(f"Erreur API Search Console (requêtes) : {df_q['_error'].iloc[0]}")
-    elif not df_q.empty:
+    if not df_q.empty:
         df_q_display = df_q.copy()
         df_q_display["Clics"]       = df_q_display["Clics"].apply(lambda x: f"{x:,}")
         df_q_display["Impressions"] = df_q_display["Impressions"].apply(lambda x: f"{x:,}")
