@@ -484,7 +484,7 @@ def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity:
         property=f"properties/{property_id}",
         date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
         dimensions=[Dimension(name=dimension)],
-        metrics=[Metric(name="totalUsers")],
+        metrics=[Metric(name="totalUsers"), Metric(name="keyEvents")],
         order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name=dimension))],
         **({"dimension_filter": sf} if sf else {}),
     )
@@ -493,8 +493,9 @@ def fetch_traffic(property_id: str, start_date: str, end_date: str, granularity:
     rows = []
     for row in response.rows:
         rows.append({
-            "period": row.dimension_values[0].value,
-            "users":  int(row.metric_values[0].value),
+            "period":     row.dimension_values[0].value,
+            "users":      int(row.metric_values[0].value),
+            "key_events": int(row.metric_values[1].value),
         })
 
     df = pd.DataFrame(rows)
@@ -707,28 +708,34 @@ def main():
             x_col = "period_display"
             x_label = "Période"
 
-        fig = px.area(
-            df,
-            x=x_col,
-            y="users",
-            labels={"users": "Utilisateurs", x_col: x_label},
-            title=f"Utilisateurs par {granularity.lower()} — {site_name}",
-            color_discrete_sequence=["#4f8ef7"],
-        )
-        fig.update_traces(
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=df[x_col], y=df["users"],
+            name="Utilisateurs",
+            mode="lines",
+            line=dict(color="#4f8ef7", width=2),
             fill="tozeroy",
-            line=dict(width=2),
-            fillcolor="rgba(79, 142, 247, 0.15)",
-        )
+            fillcolor="rgba(79,142,247,0.12)",
+        ))
+        fig.add_trace(go.Scatter(
+            x=df[x_col], y=df["key_events"],
+            name="Key Events",
+            mode="lines",
+            line=dict(color="#e05c2a", width=2),
+            fill="tozeroy",
+            fillcolor="rgba(224,92,42,0.08)",
+        ))
         fig.update_layout(
+            title=f"Utilisateurs & Key Events par {granularity.lower()} — {site_name}",
             plot_bgcolor="white",
             paper_bgcolor="white",
-            xaxis=dict(showgrid=False),
-            yaxis=dict(gridcolor="#f0f0f0"),
+            xaxis=dict(showgrid=False, title=x_label),
+            yaxis=dict(gridcolor="#f0f0f0", title=""),
             hovermode="x unified",
             margin=dict(t=50, b=20, l=20, r=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Aucune donnée de trafic disponible pour cette période.")
 
