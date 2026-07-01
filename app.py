@@ -538,7 +538,10 @@ def fetch_search_queries(property_id: str, start_date: str, end_date: str) -> pd
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="organicGoogleSearchClicks"), desc=True)],
         limit=100,
     )
-    response = client.run_report(request)
+    try:
+        response = client.run_report(request)
+    except Exception:
+        return pd.DataFrame()
     rows = []
     for row in response.rows:
         rows.append({
@@ -569,7 +572,10 @@ def fetch_search_pages(property_id: str, start_date: str, end_date: str) -> pd.D
         order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="organicGoogleSearchClicks"), desc=True)],
         limit=100,
     )
-    response = client.run_report(request)
+    try:
+        response = client.run_report(request)
+    except Exception:
+        return pd.DataFrame()
     rows = []
     for row in response.rows:
         rows.append({
